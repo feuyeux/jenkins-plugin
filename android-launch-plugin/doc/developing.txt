@@ -1,0 +1,15 @@
+/home/erichan/IdeaProjects/android-launch-plugin/work/jobs/b1/workspace
+
+Jenkins:
+http://10.11.60.82:8080/
+
+GIT:
+http://10.11.60.82:8081/
+
+Test Link:
+http://10.11.60.10/testlink/lib/api/xmlrpc.php
+http://jetmore.org/john/misc/phpdoc-testlink193-api/li_TestlinkAPI.html
+
+Test Station:
+10.11.72.61
+station/station
