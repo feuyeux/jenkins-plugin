@@ -103,7 +103,7 @@ public class UpgradeBuilder extends hudson.tasks.Builder {
             Map.Entry<String, String> entry = it.next();
             String hostIp = entry.getKey();
             if (hostIp != null) {
-                String executeShell = "upgrade-devices.py -u '" + entry.getValue() + "' -s " + hostIp;
+                String executeShell = "upgrade-devices.py -u " + entry.getValue() + " -s " + hostIp;
                 listener.getLogger().println(LOG_PREFIX + "command= " + executeShell);
                 String upgradeResult = CmdExec.exec(listener, executeShell);
                 listener.getLogger().println(LOG_PREFIX + "upgradeResult=" + upgradeResult);
