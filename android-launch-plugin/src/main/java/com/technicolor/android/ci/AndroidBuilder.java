@@ -41,6 +41,7 @@ public class AndroidBuilder extends hudson.tasks.Builder {
             //3 choose station
             handleStation(build, listener);
             listener.getLogger().println(build.getAction(ParametersAction.class).getParameters());
+            listener.getLogger().println(build.getEnvironments().toString());
         } catch (Exception e) {
             e.printStackTrace();
             listener.getLogger().println(e);
@@ -87,6 +88,7 @@ public class AndroidBuilder extends hudson.tasks.Builder {
 
     private StationParam handleStation(AbstractBuild build, BuildListener listener) throws IOException {
         listener.getLogger().println(LOG_PREFIX + "START HANDLE STATION...");
+        //self-defined station
         String assignedStation = ParamTools.retrieve(build, "STATION");
         AndroidDescriptor descriptor = (AndroidDescriptor) getDescriptor();
         StationParam[] stations = descriptor.getStations();
@@ -94,37 +96,42 @@ public class AndroidBuilder extends hudson.tasks.Builder {
         String properties = descriptor.getMappingFile();
         PluginPropertiesUtil util = new PluginPropertiesUtil(properties);
         try {
+            HashMap<String, HashMap<String, String>> allStationsDeviceInfo = new HashMap<String, HashMap<String, String>>();
             for (int i = 0; i < testCaseIds.length; i++) {
-                String stationUrl = null;
+                String selectedStationUrl = null;
                 if (assignedStation != null && assignedStation.length() > 0) {
-                    stationUrl = assignedStation;
+                    selectedStationUrl = assignedStation;
                 } else {
                     String projectName = ParamTools.retrieve(build, PluginConstant.CASE_ID + testCaseIds[i] + PluginConstant.PROJECT_NAME);
                     String product = util.retrieve(projectName);
-                    String regex = ".*u'ro.build.product': u'" + product + "'.*";
                     for (StationParam station : stations) {
+                        listener.getLogger().println("----");
+                        String stationUrl = station.getUrl();
                         listener.getLogger().println(LOG_PREFIX + "talking with:" + station);
-                        String result = CmdExec.exec(listener, "getInfo -m getDeviceInfo");
-                        listener.getLogger().println(LOG_PREFIX + "getInfo:" + result);
-                        listener.getLogger().println(LOG_PREFIX + "regex:" + regex);
-
-                        stationUrl = station.getUrl();
-                        break;
-                        /*
-                        if (result.matches(regex)) {
-                            stationUrl = station.getUrl();
-                            break;
+                        HashMap<String, String> deviceInfoMap = null;
+                        if (allStationsDeviceInfo.containsKey(stationUrl)) {
+                            deviceInfoMap = allStationsDeviceInfo.get(stationUrl);
+                        } else {
+                            String result = CmdExec.exec(listener, "getInfo -m getDeviceInfo -i " + stationUrl);
+                            listener.getLogger().println(LOG_PREFIX + "getInfo:" + result);
+                            deviceInfoMap = parseDeviceInfo(result, listener);
+                            allStationsDeviceInfo.put(stationUrl, deviceInfoMap);
                         }
-                        */
+
+                        if (deviceInfoMap.containsKey("ro.build.product") && product.equals(deviceInfoMap.get("ro.build.product"))) {
+                            selectedStationUrl = stationUrl;
+                            String deviceVersion = deviceInfoMap.get("ro.build.version.product");
+                            ParamTools.store(build, PluginConstant.CASE_ID + testCaseIds[i] + ".ro.build.version.product", deviceVersion);
+                            listener.getLogger().println(LOG_PREFIX + "deviceVersion = " + deviceVersion);
+                        }
                     }
                 }
-                if (stationUrl != null) {
-                    listener.getLogger().println(LOG_PREFIX + testCaseIds[i] + "choose station " + stationUrl);
-                    ParamTools.store(build, PluginConstant.CASE_ID + testCaseIds[i] + PluginConstant.HOST_IP, stationUrl);
+                if (selectedStationUrl != null) {
+                    listener.getLogger().println(LOG_PREFIX + testCaseIds[i] + "choose station " + selectedStationUrl);
+                    ParamTools.store(build, PluginConstant.CASE_ID + testCaseIds[i] + PluginConstant.HOST_IP, selectedStationUrl);
                 } else {
                     listener.getLogger().println(LOG_PREFIX + testCaseIds[i] + "find no suitable station !");
                 }
-
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -133,6 +140,24 @@ public class AndroidBuilder extends hudson.tasks.Builder {
 
         listener.getLogger().println(LOG_PREFIX + "HANDLE STATION DONE.");
         return null;
+    }
+
+    private HashMap<String, String> parseDeviceInfo(String deviceInfo, BuildListener listener) {
+        int startIndex = deviceInfo.lastIndexOf("{");
+        int endIndex = deviceInfo.lastIndexOf("}");
+        deviceInfo = deviceInfo.substring(startIndex, endIndex);
+        listener.getLogger().println(LOG_PREFIX + " getInfo Message=" + deviceInfo);
+        deviceInfo = deviceInfo.substring(1, deviceInfo.length() - 1);
+        String[] elements = deviceInfo.split(":|,");
+        HashMap<String, String> deviceInfoMap = new HashMap<>();
+        String key;
+        String value;
+        for (int i = 0; i < elements.length; i = i + 2) {
+            key = elements[i].trim();
+            value = elements[i + 1].trim();
+            deviceInfoMap.put(key.substring(2, key.length() - 1), value.substring(2, value.length() - 1));
+        }
+        return deviceInfoMap;
     }
 
     @Override

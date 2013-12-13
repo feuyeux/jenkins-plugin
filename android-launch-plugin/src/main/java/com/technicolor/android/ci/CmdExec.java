@@ -12,7 +12,7 @@ import java.io.InputStreamReader;
  * Time: 3:33 PM
  */
 public class CmdExec {
-    public static String exec(BuildListener listener,String cmd) {
+    public static String exec(BuildListener listener, String cmd) {
         String result = "";
         try {
             Process proc = Runtime.getRuntime().exec(cmd);
@@ -23,20 +23,27 @@ public class CmdExec {
                 e.printStackTrace();
             }
             StringBuffer buffer = new StringBuffer();
-            BufferedReader read = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+            BufferedReader info = new BufferedReader(new InputStreamReader(proc.getInputStream()));
             int s;
-            while ((s = read.read()) != -1) {
+            while ((s = info.read()) != -1) {
                 buffer.append((char) s);
+            }
+
+            BufferedReader errors = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
+            int es;
+            while ((es = errors.read()) != -1) {
+                buffer.append((char) es);
             }
             result = buffer.toString();
         } catch (Exception e) {
+            result = e.getMessage();
             listener.getLogger().println(e.getStackTrace());
-            result = "";
+            e.printStackTrace();
         }
         return result;
     }
 
-    public static String executeAndGetLastLine(BuildListener listener,String cmd) {
+    public static String executeAndGetLastLine(BuildListener listener, String cmd) {
         String result = "";
         try {
             Process proc = Runtime.getRuntime().exec(cmd);

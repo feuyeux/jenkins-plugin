@@ -43,6 +43,11 @@ public class ParamBuilder extends hudson.tasks.Builder {
             listener.getLogger().println("Saving building tag...");
             ParamTools.store(build, BUILDING_TAG, buildingTag);
         }
+        listener.getLogger().println("workspace="+build.getWorkspace());
+        listener.getLogger().println("number="+build.getNumber());
+        listener.getLogger().println("url="+ build.getUrl());
+        listener.getLogger().println("rootDir="+build.getRootDir());
+        listener.getLogger().println("EnvVars="+build.getEnvironment(listener));
         return true;
     }
 }

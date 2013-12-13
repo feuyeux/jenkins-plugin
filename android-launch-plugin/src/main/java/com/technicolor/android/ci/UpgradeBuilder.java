@@ -10,6 +10,9 @@ import hudson.tasks.Builder;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Upgrade the build package to device
@@ -42,9 +45,6 @@ public class UpgradeBuilder extends hudson.tasks.Builder {
 
     private void handleUpgrade(AbstractBuild build, BuildListener listener) throws IOException, InterruptedException {
         listener.getLogger().println(LOG_PREFIX + "START UPGRADE...");
-        String ci_build_file_names = ParamTools.retrieve(build, PluginConstant.CI_BUILD_FILE);
-        listener.getLogger().println(LOG_PREFIX + "CI_BUILD_FILE_NAMES=" + ci_build_file_names);
-
         /*
         UpgradeAPI :
         Input :upgrade -u buildURL -v newVersionNumber(optional) -n SN1 -n SN2 -n SN3(if no -n specified, all devices in the station will upgrade) -t upgradeTimeout(default 6mins) -s atsdHost(default localhost) -p atsdPort(default 9999)
@@ -54,21 +54,62 @@ public class UpgradeBuilder extends hudson.tasks.Builder {
 
         */
 
-        String cases = ParamTools.retrieve(build,PluginConstant.CASES);
+        String cases = ParamTools.retrieve(build, PluginConstant.CASES);
         if (cases == null) {
             String reason = "ERROR: Not find Test Case Id.";
             listener.getLogger().println(LOG_PREFIX + reason);
             throw new InterruptedException(reason);
         }
+
+        ConcurrentHashMap<String, String> upgradeTaskMap = new ConcurrentHashMap<>();
+
         String[] testCaseIds = cases.split(",");
         for (int i = 0; i < testCaseIds.length; i++) {
+            listener.getLogger().println("----");
             String caseParam = PluginConstant.CASE_ID + testCaseIds[i];
+            String deviceBuildVersion = ParamTools.retrieve(build, caseParam + ".ro.build.version.product");
             listener.getLogger().println(LOG_PREFIX + "caseParam=" + caseParam);
-            String hostIp = ParamTools.retrieve(build,caseParam + PluginConstant.HOST_IP);
-            String executeShell = "upgrade-devices.py -u '" + ci_build_file_names + "' -s " + hostIp;
-            listener.getLogger().println(LOG_PREFIX + "command=" + executeShell);
-            String upgradeResult = CmdExec.exec(listener,executeShell);
-            listener.getLogger().println(LOG_PREFIX + "upgradeResult=" + upgradeResult);
+            String hostIp = ParamTools.retrieve(build, caseParam + PluginConstant.HOST_IP);
+
+            /*for demo3*/
+            String buildFile = ParamTools.retrieve(build, PluginConstant.CI_BUILD_FILE);
+            String[] files = buildFile.split("~");
+            String ci_build_file_names = null;
+            listener.getLogger().println(LOG_PREFIX + "Test Station:" + hostIp + " current BuildVersion=" + deviceBuildVersion);
+            if (deviceBuildVersion.contains("4.0.4_3.35")) {
+                for (String file : files) {
+                    if (file.contains("4.0.4_3.36")) {
+                        ci_build_file_names = file;
+                        break;
+                    }
+                }
+            } else {
+                for (String file : files) {
+                    if (file.contains("4.0.4_3.35")) {
+                        ci_build_file_names = file;
+                        break;
+                    }
+                }
+            }
+            listener.getLogger().println(LOG_PREFIX + "HOST IP=" + hostIp);
+            listener.getLogger().println(LOG_PREFIX + "buildFile [end] = " + ci_build_file_names);
+            /*for demo3*/
+
+            upgradeTaskMap.put(hostIp, ci_build_file_names);
+        }
+        Iterator<Map.Entry<String, String>> it = upgradeTaskMap.entrySet().iterator();
+
+        while (it.hasNext()) {
+            Map.Entry<String, String> entry = it.next();
+            String hostIp = entry.getKey();
+            if (hostIp != null) {
+                String executeShell = "upgrade-devices.py -u '" + entry.getValue() + "' -s " + hostIp;
+                listener.getLogger().println(LOG_PREFIX + "command= " + executeShell);
+                String upgradeResult = CmdExec.exec(listener, executeShell);
+                listener.getLogger().println(LOG_PREFIX + "upgradeResult=" + upgradeResult);
+            } else {
+
+            }
         }
         listener.getLogger().println(LOG_PREFIX + "UPGRADE DONE.");
     }

@@ -10,6 +10,7 @@ import hudson.model.Descriptor;
 import hudson.tasks.Builder;
 import org.kohsuke.stapler.DataBoundConstructor;
 
+import java.io.File;
 import java.io.IOException;
 
 /**
@@ -23,7 +24,7 @@ public class RunTestBuilder extends hudson.tasks.Builder {
     @Extension
     public static final RunTestDescriptor DESCRIPTOR = new RunTestDescriptor();
     public static final String LOG_PREFIX = "ResultBuilder::";
-    private static final String VERIFY_VALUE = "verify_value";
+    private static final String VERIFY_VALUE = "Total Test status=";
     private static final String PROJECT = "project";
     private static final String FILENAME = "filename";
     private final String resultpath;
@@ -130,10 +131,24 @@ public class RunTestBuilder extends hudson.tasks.Builder {
 
         String executeShell = " ats2 -f " + projectName + "/" + fileName + " -t " + className + "#" + methodName + " -s " + hostIp;
         listener.getLogger().println(LOG_PREFIX + "command=" + executeShell);
-        listener.getLogger().println(LOG_PREFIX + "result_xml_file_path=" + resultpath);
+
+
+        listener.getLogger().println("workspace=" + build.getWorkspace());
+        listener.getLogger().println("number=" + build.getNumber());
+
+        int nameIndex = resultpath.lastIndexOf("/");
+        String folder = resultpath.substring(0, nameIndex + 1) + build.getNumber();
+
+        File f = new File(folder);
+        if (!f.exists()) {
+            f.mkdir();
+        }
+        String name = resultpath.substring(nameIndex + 1);
+        String resultFile = folder + "/" + name;
+        listener.getLogger().println(LOG_PREFIX + "RESULT_XML_FILE_PATH=" + resultFile);
 
         ResultParser parser = new ResultParser();
-        boolean buildSuccess = parser.invoke(new String[]{executeShell, resultpath});
+        boolean buildSuccess = parser.invoke(new String[]{executeShell, resultFile});
 
         if (buildSuccess) {
             ParamTools.store(build, VERIFY_VALUE, "success");
