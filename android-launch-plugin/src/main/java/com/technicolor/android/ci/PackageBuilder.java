@@ -44,10 +44,10 @@ public class PackageBuilder extends hudson.tasks.Builder {
         listener.getLogger().println(LOG_PREFIX + "START BUILDING...");
         Map<String, String> buildVariables = build.getBuildVariables();
         String shell = buildVariables.get(BUILD_SHELL);
-        String result = CmdExec.executeAndGetLastLine(listener,shell);
+        String result = CmdExec.executeAndGetLastLine(listener, shell);
         listener.getLogger().println(LOG_PREFIX + "BUILD PACKAGE URL=" + result);
 
-        ParamTools.store(build,PluginConstant.CI_BUILD_FILE, result);
+        ParamTools.store(build, PluginConstant.CI_BUILD_FILE, result);
         listener.getLogger().println(LOG_PREFIX + "BUILD DONE.");
     }
 }

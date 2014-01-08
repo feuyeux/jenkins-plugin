@@ -28,6 +28,7 @@
         </f:repeatable>
     </f:entry>
 </f:section>
+
 <f:section title="project mapping">
     <f:entry title="properties file" field="mappingFile">
       <f:textbox/>
