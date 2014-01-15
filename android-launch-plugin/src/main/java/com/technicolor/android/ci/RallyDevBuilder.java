@@ -1,7 +1,8 @@
 package com.technicolor.android.ci;
 
 import com.google.gson.JsonObject;
-import com.technicolor.android.ci.util.RallyClient;
+import com.rallydev.rest.util.Ref;
+import com.technicolor.android.ci.rally.RallyClient;
 import hudson.Extension;
 import hudson.Launcher;
 import hudson.model.AbstractBuild;
@@ -12,6 +13,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.URISyntaxException;
 
 /**
  * Created by erichan on 1/7/14.
@@ -19,43 +21,32 @@ import java.io.PrintStream;
 public class RallyDevBuilder extends Builder {
     @Extension
     public static final RallyDevDescriptor DESCRIPTOR = new RallyDevDescriptor();
-    public static final String RALLY_URL = "https://rally1.rallydev.com";
     private static final String LOG_PREFIX = "RallyDevBuilder::";
+    private final String testSetId;
     private final String testCaseId;
 
     @DataBoundConstructor
-    public RallyDevBuilder(String testCaseId) {
+    public RallyDevBuilder(String testSetId, String testCaseId) {
+        this.testSetId = testSetId;
         this.testCaseId = testCaseId;
     }
 
     @Override
     public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) {
-        PrintStream out = listener.getLogger();
         final String userName = DESCRIPTOR.getUserName();
         final String password = DESCRIPTOR.getPassword();
         final String proxyURL = DESCRIPTOR.getProxyURL();
         final String proxyUser = DESCRIPTOR.getProxyUser();
         final String proxyPassword = DESCRIPTOR.getProxyPassword();
 
-        out.println("RallyDev User Name =" + userName);
-        out.println("HTTP Proxy =" + proxyUser + "@" + proxyURL);
-        out.println("RallyDev Test Case =" + getTestCaseId() + "\n");
-
+        PrintStream out = listener.getLogger();
         RallyClient rallyClient = null;
         try {
-            rallyClient = new RallyClient(RALLY_URL, userName, password, proxyURL, proxyUser, proxyPassword, out);
+            rallyClient = new RallyClient(userName, password, proxyURL, proxyUser, proxyPassword, out);
 
-            /*test case*/
-            JsonObject testCaseJson;
-            if (testCaseId.indexOf("TC") > -1) {
-                testCaseJson = rallyClient.getCaseByFormattedId(testCaseId);
-            } else {
-                testCaseJson = rallyClient.getCaseByObjectId(testCaseId);
-            }
-            out.println(testCaseJson + "\n");
+            testCaseAndResult(rallyClient, out);
+            //rallyClient.getTestCasesByTestSetFormattedId(testSetId);
 
-            /*test case result*/
-            rallyClient.createTestCaseResult(testCaseJson);
         } catch (Exception e) {
             //out.println(e.getMessage());
             out.println(e);
@@ -69,8 +60,42 @@ public class RallyDevBuilder extends Builder {
         return true;
     }
 
+    private void testCaseAndResult(RallyClient rallyClient, PrintStream out) throws IOException, URISyntaxException {
+        /*retrieve test case*/
+        JsonObject testCaseJson;
+        if (testCaseId.indexOf("TC") > -1) {
+            testCaseJson = rallyClient.getCaseByFormattedId(testCaseId);
+        } else {
+            testCaseJson = rallyClient.getCaseByObjectId(testCaseId);
+        }
+        out.println(testCaseJson + "\n");
+
+        /*create test case result*/
+        String testCaseRef = testCaseJson.get("_ref").getAsString();
+        JsonObject testCaseResultJson = rallyClient.createTestCaseResult(testCaseRef);
+
+        /*create defect*/
+        String resultVerdict = testCaseResultJson.get("Verdict").getAsString();
+        if (!"Pass".equals(resultVerdict)) {
+            String testCaseResultRef = testCaseResultJson.get("_ref").getAsString();
+            JsonObject defectJson = rallyClient.getDefectByTestCase(testCaseRef);
+            if (defectJson == null) {
+                defectJson = rallyClient.createDefect(testCaseRef, testCaseResultRef);
+            }
+            /*update test case result*/
+            JsonObject testCaseResultJson1 = new JsonObject();
+            testCaseResultJson1.addProperty("Notes", "Defect ID=" + defectJson.get("FormattedID").getAsString());
+            String ref = Ref.getRelativeRef(testCaseResultRef);
+            rallyClient.updateTestCaseResult(ref, testCaseResultJson1);
+        }
+    }
+
     public String getTestCaseId() {
         return testCaseId;
+    }
+
+    public String getTestSetId() {
+        return testSetId;
     }
 
     @Override
